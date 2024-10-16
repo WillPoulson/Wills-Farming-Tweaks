@@ -3,7 +3,9 @@
 	"package": "uk.co.willpoulson.willsfarmingtweaks.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
-		"FarmlandBlockMixin"
+		"FarmlandBlockMixin",
+		"BoneMealItemMixin",
+		"HoeItemMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
