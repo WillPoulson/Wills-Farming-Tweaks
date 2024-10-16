@@ -3,9 +3,9 @@
 	"id": "wills-farming-tweaks",
 	"version": "${version}",
 	"name": "Will's Farming Tweaks",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "A simple lightweight mod to improve the vanilla experience of farming crops",
 	"authors": [
-		"Me!"
+		"Will Poulson"
 	],
 	"contact": {
 		"homepage": "https://fabricmc.net/",
@@ -17,9 +17,6 @@
 	"entrypoints": {
 		"main": [
 			"uk.co.willpoulson.willsfarmingtweaks.WillsFarmingTweaks"
-		],
-		"fabric-datagen": [
-			"uk.co.willpoulson.willsfarmingtweaks.WillsFarmingTweaksDataGenerator"
 		]
 	},
 	"mixins": [
@@ -31,7 +28,5 @@
 		"java": ">=21",
 		"fabric-api": "*"
 	},
-	"suggests": {
-		"another-mod": "*"
-	}
+	"suggests": {}
 }
