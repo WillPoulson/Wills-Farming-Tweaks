@@ -1,6 +1,6 @@
 ![Banner image](https://cdn.modrinth.com/data/cached_images/b51a0833636b342b48df6e17ee6d7bdf4b1ca6f1.png)
 
-**Will's Farming Tweaks** is a Fabric mod for Minecraft 1.21.1 that enhances farming efficiency by improving the functionality of hoes, bonemeal, and farmland. With this mod, you can harvest crops in larger areas, speed up crop growth in a wider radius, and protect your farmland from being trampled.
+**Will's Farming Tweaks** is a Fabric mod for Minecraft 1.21.11 that enhances farming efficiency by improving the functionality of hoes, bonemeal, and farmland. With this mod, you can harvest crops in larger areas, speed up crop growth in a wider radius, and protect your farmland from being trampled.
 
 ## Features
 
