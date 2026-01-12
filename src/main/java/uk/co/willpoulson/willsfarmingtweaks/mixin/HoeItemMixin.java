@@ -1,6 +1,5 @@
 package uk.co.willpoulson.willsfarmingtweaks.mixin;
 
-
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.CropBlock;
@@ -12,95 +11,89 @@ import net.minecraft.item.ItemUsageContext;
 import net.minecraft.item.Items;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraft.world.WorldEvents;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.Map;
+
 @Mixin(HoeItem.class)
 public class HoeItemMixin {
+
+    @Unique
+    private static final int HARVEST_COOLDOWN_TICKS = 8;
 
     @Inject(method = "useOnBlock", at = @At("HEAD"), cancellable = true)
     private void harvestCropsWithHoe(ItemUsageContext context, CallbackInfoReturnable<ActionResult> cir) {
         World world = context.getWorld();
-
-        // Exit if not on the server or the world is not a ServerWorld
-        if (world.isClient() || !(world instanceof ServerWorld)) {
-            return;
-        }
-
-        BlockPos pos = context.getBlockPos();
-        Block block = world.getBlockState(pos).getBlock();
-
-        // Exit if the block is not a crop or the crop is not mature
-        if (
-            !(block instanceof CropBlock cropBlock) ||
-            !cropBlock.isMature(world.getBlockState(pos)))
-        {
-            return;
-        }
-
-        // Get the radius for the hoe, exit if it's not a valid hoe
-        Item hoeItem = context.getStack().getItem();
-        int radius = getRadiusForHoe(hoeItem);
-        if (radius < 0) {
-            return;
-        }
-
-        ServerWorld serverWorld = (ServerWorld) world;
-        boolean harvested = false;
+        if (world.isClient() || !(world instanceof ServerWorld serverWorld)) return;
 
         PlayerEntity player = context.getPlayer();
+        Item hoeItem = context.getStack().getItem();
+
+        int radius = getRadiusForHoe(hoeItem);
+        if (radius == -1) return;
+
+        if (player != null && player.getItemCooldownManager().isCoolingDown(context.getStack())) return;
+
+        BlockPos originPos = context.getBlockPos();
+        BlockState originState = world.getBlockState(originPos);
+
+        if (!(originState.getBlock() instanceof CropBlock crop) || !crop.isMature(originState)) return;
+
+        boolean harvested = false;
         EquipmentSlot slot = context.getHand() == Hand.MAIN_HAND ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
 
-        // Iterate through nearby blocks within the specified radius
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
-                BlockPos nearbyPos = pos.add(dx, 0, dz);
-                BlockState blockState = world.getBlockState(nearbyPos);
-                Block nearbyBlock = blockState.getBlock();
+                BlockPos pos = originPos.add(dx, 0, dz);
+                BlockState state = world.getBlockState(pos);
 
-                // Continue if the block is not a mature crop
-                if (
-                    !(nearbyBlock instanceof CropBlock crop) ||
-                    !crop.isMature(blockState)
-                ) {
-                    continue;
+                if (!(state.getBlock() instanceof CropBlock nearbyCrop) || !nearbyCrop.isMature(state)) continue;
+
+                serverWorld.setBlockState(pos, nearbyCrop.getDefaultState(), Block.NOTIFY_ALL);
+
+                if (player != null) {
+                    Block.dropStacks(state, serverWorld, pos, null, player, context.getStack());
+                    context.getStack().damage(1, player, slot);
+                } else {
+                    Block.dropStacks(state, serverWorld, pos);
                 }
 
-                // Harvest the crop and set the block to its default state (replant)
-                serverWorld.setBlockState(nearbyPos, crop.getDefaultState());
+                serverWorld.syncWorldEvent(
+                        WorldEvents.BLOCK_BROKEN,
+                        pos,
+                        Block.getRawIdFromState(state)
+                );
 
-                // Drop the crop items as if the player harvested them manually
-                Block.dropStacks(blockState, serverWorld, nearbyPos);
+                serverWorld.playSound(
+                        null,
+                        pos,
+                        state.getSoundGroup().getBreakSound(),
+                        SoundCategory.BLOCKS,
+                        (state.getSoundGroup().getVolume() + 1.0F) / 2.0F,
+                        state.getSoundGroup().getPitch() * 0.8F
+                );
 
-                // Damage the hoe for each successful harvest
-                context.getStack().damage(1, player, slot);
-
-                // Mark that at least one crop was harvested
                 harvested = true;
             }
         }
 
-        // If any crops were harvested, consume the hoe's use and cancel further processing
-        if (harvested) {
-            serverWorld.playSound(
-                null,
-                pos,
-                SoundEvents.BLOCK_CROP_BREAK,
-                SoundCategory.BLOCKS,
-                1.0F,
-                1.0F
-            );
+        if (!harvested) return;
 
-            cir.setReturnValue(ActionResult.SUCCESS);
+        if (player != null) {
+            player.swingHand(context.getHand(), true);
+            player.getItemCooldownManager().set(context.getStack(), HARVEST_COOLDOWN_TICKS);
         }
+
+        cir.setReturnValue(ActionResult.SUCCESS);
     }
 
     @Unique
