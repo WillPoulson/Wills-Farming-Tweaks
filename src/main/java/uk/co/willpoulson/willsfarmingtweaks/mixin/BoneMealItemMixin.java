@@ -18,67 +18,62 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import uk.co.willpoulson.willsfarmingtweaks.config.ConfigManager;
 
 @Mixin(BoneMealItem.class)
 public class BoneMealItemMixin {
+
     @Inject(method = "useOnBlock", at = @At("HEAD"), cancellable = true)
     private void applyBoneMealToNearbyCrops(ItemUsageContext context, CallbackInfoReturnable<ActionResult> cir) {
         World world = context.getWorld();
-
-        // Exit if not on the server or the world is not a ServerWorld
-        if (world.isClient() || !(world instanceof ServerWorld)) {
-            return;
-        }
+        if (world.isClient() || !(world instanceof ServerWorld serverWorld)) return;
 
         BlockPos pos = context.getBlockPos();
         BlockState state = world.getBlockState(pos);
         Block block = state.getBlock();
 
-        // Exit if the block is not a crop or the crop is already mature
-        if (!(block instanceof CropBlock cropBlock) || cropBlock.isMature(state)) {
-            return;
+        if (!(block instanceof CropBlock cropBlock) || cropBlock.isMature(state)) return;
+
+        int radius = ConfigManager.get().bonemeal.radius;
+        double baseChance = ConfigManager.get().bonemeal.baseChance;
+
+        // Always apply to the clicked crop first (vanilla feel)
+        boolean appliedToOrigin = BoneMealItem.useOnFertilizable(context.getStack(), world, pos);
+        if (appliedToOrigin) {
+            serverWorld.getChunkManager().markForUpdate(pos);
+            spawnBoneMealParticles(serverWorld, pos);
         }
 
-        int radius = 2;
+        if (radius > 0 && baseChance > 0.0) {
+            double maxDistance = Math.sqrt(2 * (radius * radius));
 
-        // Iterate through nearby blocks within the specified radius
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                BlockPos nearbyPos = pos.add(dx, 0, dz);
-                BlockState nearbyState = world.getBlockState(nearbyPos);
-                Block nearbyBlock = nearbyState.getBlock();
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (dx == 0 && dz == 0) continue;
 
-                // If the nearby block is not a crop, or it is already mature, skip to the next block
-                if (!(nearbyBlock instanceof CropBlock nearbyCropBlock) || nearbyCropBlock.isMature(nearbyState)) {
-                    continue;
+                    BlockPos nearbyPos = pos.add(dx, 0, dz);
+                    BlockState nearbyState = world.getBlockState(nearbyPos);
+
+                    if (!(nearbyState.getBlock() instanceof CropBlock nearbyCrop) || nearbyCrop.isMature(nearbyState)) {
+                        continue;
+                    }
+
+                    double distance = Math.sqrt(dx * dx + dz * dz);
+                    double distanceChance = 1.0 - (distance / maxDistance);
+                    double chance = baseChance * distanceChance;
+
+                    if (world.random.nextDouble() > chance) continue;
+
+                    boolean applied = BoneMealItem.useOnFertilizable(context.getStack(), world, nearbyPos);
+                    if (applied) {
+                        serverWorld.getChunkManager().markForUpdate(nearbyPos);
+                        spawnBoneMealParticles(serverWorld, nearbyPos);
+                    }
                 }
-
-                double distance = Math.sqrt(dx * dx + dz * dz);
-                double maxDistance = Math.sqrt(2 * (radius * radius));
-
-                // Calculate the probability of applying the bonemeal effect based on distance
-                double probability = 1.0 - (distance / maxDistance);
-
-                if (world.random.nextDouble() > probability) {
-                    continue;
-                }
-
-                BoneMealItem.useOnFertilizable(context.getStack(), world, nearbyPos);
-                ((ServerWorld) world).getChunkManager().markForUpdate(nearbyPos);
-                spawnBoneMealParticles((ServerWorld) world, nearbyPos);
             }
         }
 
-        world.playSound(
-            null,
-            pos,
-            SoundEvents.ITEM_BONE_MEAL_USE,
-            SoundCategory.BLOCKS,
-            1.0F,
-            1.0F
-        );
-
-        // Cancel the original useOnBlock behavior to prevent double application
+        world.playSound(null, pos, SoundEvents.ITEM_BONE_MEAL_USE, SoundCategory.BLOCKS, 1.0F, 1.0F);
         cir.setReturnValue(ActionResult.SUCCESS);
     }
 
@@ -92,7 +87,6 @@ public class BoneMealItemMixin {
             double speed = world.random.nextDouble() * 0.05;
 
             Vec3d particlePos = new Vec3d(pos.getX() + offsetX, pos.getY() + offsetY, pos.getZ() + offsetZ);
-
             world.spawnParticles(ParticleTypes.HAPPY_VILLAGER, particlePos.x, particlePos.y, particlePos.z, 1, 0, deltaY, 0, speed);
         }
     }

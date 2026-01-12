@@ -9,11 +9,15 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import uk.co.willpoulson.willsfarmingtweaks.config.ConfigManager;
 
 @Mixin(FarmlandBlock.class)
 public class FarmlandBlockMixin {
+
 	@Inject(method = "onLandedUpon", at = @At("HEAD"), cancellable = true)
 	private void preventFarmlandTrample(World world, BlockState state, BlockPos pos, Entity entity, double fallDistance, CallbackInfo ci) {
-		ci.cancel();
+		if (!ConfigManager.get().allowTrample) {
+			ci.cancel();
+		}
 	}
 }

@@ -6,9 +6,9 @@ import net.minecraft.block.CropBlock;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.HoeItem;
-import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.item.ItemUsageContext;
-import net.minecraft.item.Items;
+import net.minecraft.registry.Registries;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.util.ActionResult;
@@ -21,14 +21,10 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
-import java.util.Map;
+import uk.co.willpoulson.willsfarmingtweaks.config.ConfigManager;
 
 @Mixin(HoeItem.class)
 public class HoeItemMixin {
-
-    @Unique
-    private static final int HARVEST_COOLDOWN_TICKS = 8;
 
     @Inject(method = "useOnBlock", at = @At("HEAD"), cancellable = true)
     private void harvestCropsWithHoe(ItemUsageContext context, CallbackInfoReturnable<ActionResult> cir) {
@@ -36,12 +32,13 @@ public class HoeItemMixin {
         if (world.isClient() || !(world instanceof ServerWorld serverWorld)) return;
 
         PlayerEntity player = context.getPlayer();
-        Item hoeItem = context.getStack().getItem();
+        ItemStack stack = context.getStack();
 
-        int radius = getRadiusForHoe(hoeItem);
-        if (radius == -1) return;
+        int cooldownTicks = ConfigManager.get().harvest.cooldownTicks;
+        if (player != null && player.getItemCooldownManager().isCoolingDown(stack)) return;
 
-        if (player != null && player.getItemCooldownManager().isCoolingDown(context.getStack())) return;
+        int radius = getRadiusFor(stack);
+        if (radius < 0) return;
 
         BlockPos originPos = context.getBlockPos();
         BlockState originState = world.getBlockState(originPos);
@@ -61,17 +58,13 @@ public class HoeItemMixin {
                 serverWorld.setBlockState(pos, nearbyCrop.getDefaultState(), Block.NOTIFY_ALL);
 
                 if (player != null) {
-                    Block.dropStacks(state, serverWorld, pos, null, player, context.getStack());
-                    context.getStack().damage(1, player, slot);
+                    Block.dropStacks(state, serverWorld, pos, null, player, stack);
+                    stack.damage(1, player, slot);
                 } else {
                     Block.dropStacks(state, serverWorld, pos);
                 }
 
-                serverWorld.syncWorldEvent(
-                        WorldEvents.BLOCK_BROKEN,
-                        pos,
-                        Block.getRawIdFromState(state)
-                );
+                serverWorld.syncWorldEvent(WorldEvents.BLOCK_BROKEN, pos, Block.getRawIdFromState(state));
 
                 serverWorld.playSound(
                         null,
@@ -90,26 +83,19 @@ public class HoeItemMixin {
 
         if (player != null) {
             player.swingHand(context.getHand(), true);
-            player.getItemCooldownManager().set(context.getStack(), HARVEST_COOLDOWN_TICKS);
+            if (cooldownTicks > 0) player.getItemCooldownManager().set(stack, cooldownTicks);
         }
 
         cir.setReturnValue(ActionResult.SUCCESS);
     }
 
     @Unique
-    private int getRadiusForHoe(Item hoeItem) {
-        if (hoeItem == Items.WOODEN_HOE) {
-            return 0; // Single block
-        } else if (hoeItem == Items.STONE_HOE) {
-            return 1; // 3x3 area
-        } else if (hoeItem == Items.IRON_HOE || hoeItem == Items.GOLDEN_HOE) {
-            return 2; // 5x5 area
-        } else if (hoeItem == Items.DIAMOND_HOE) {
-            return 3; // 7x7 area
-        } else if (hoeItem == Items.NETHERITE_HOE) {
-            return 4; // 9x9 area
-        } else {
-            return -1; // Not a valid hoe
-        }
+    private int getRadiusFor(ItemStack stack) {
+        String id = Registries.ITEM.getId(stack.getItem()).toString();
+
+        Integer configured = ConfigManager.get().harvest.radiusByItemId.get(id);
+        if (configured != null) return configured;
+
+        return ConfigManager.get().harvest.defaultRadius;
     }
 }
