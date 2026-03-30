@@ -23,6 +23,7 @@ public class ModConfig {
         Map<String, Integer> m = new HashMap<>();
         m.put("minecraft:wooden_hoe", 0);
         m.put("minecraft:stone_hoe", 1);
+        m.put("minecraft:copper_hoe", 2);
         m.put("minecraft:iron_hoe", 2);
         m.put("minecraft:golden_hoe", 2);
         m.put("minecraft:diamond_hoe", 3);

@@ -1,23 +1,39 @@
 package uk.co.willpoulson.willsfarmingtweaks.mixin;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.FarmlandBlock;
-import net.minecraft.entity.Entity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.FarmlandBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import uk.co.willpoulson.willsfarmingtweaks.config.ConfigManager;
 
 @Mixin(FarmlandBlock.class)
 public class FarmlandBlockMixin {
 
-	@Inject(method = "onLandedUpon", at = @At("HEAD"), cancellable = true)
-	private void preventFarmlandTrample(World world, BlockState state, BlockPos pos, Entity entity, double fallDistance, CallbackInfo ci) {
-		if (!ConfigManager.get().allowTrample) {
-			ci.cancel();
+	@Redirect(
+			method = "fallOn",
+			at = @At(
+					value = "INVOKE",
+					target = "Lnet/minecraft/world/level/block/FarmlandBlock;turnToDirt(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)V"
+			)
+	)
+	private void willsFarmingTweaks$onlyTrampleWhenAllowed(
+			Entity turnEntity,
+			BlockState turnState,
+			Level turnLevel,
+			BlockPos turnPos,
+			Level level,
+			BlockState state,
+			BlockPos pos,
+			Entity entity,
+			double fallDistance
+	) {
+		if (ConfigManager.get().allowTrample) {
+			FarmlandBlock.turnToDirt(turnEntity, turnState, turnLevel, turnPos);
 		}
 	}
+
 }

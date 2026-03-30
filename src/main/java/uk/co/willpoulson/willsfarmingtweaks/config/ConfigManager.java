@@ -56,6 +56,10 @@ public final class ConfigManager {
             config.harvest.radiusByItemId = new ModConfig.Harvest().radiusByItemId;
         }
 
+        for (var e : new ModConfig.Harvest().radiusByItemId.entrySet()) {
+            config.harvest.radiusByItemId.putIfAbsent(e.getKey(), e.getValue());
+        }
+
         config.harvest.cooldownTicks = clampInt(config.harvest.cooldownTicks, 0, 100);
         config.harvest.defaultRadius = clampInt(config.harvest.defaultRadius, 0, 16);
 
